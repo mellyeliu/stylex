@@ -774,20 +774,28 @@ describe('@stylexjs/babel-plugin', () => {
         ['xPlain1', { ltr: '.xPlain1{display:none}', rtl: null }, 6000],
       ];
 
+      const processOpts = { useLayers: false, legacyDisableLayers: true };
+
       // Process in original order
-      const output1 = stylexPlugin.processStylexRules(rules, {
-        useLayers: false,
-        legacyDisableLayers: true,
-      });
+      const output1 = stylexPlugin.processStylexRules(rules, processOpts);
 
-      // Process in reversed order
+      // Snapshot the expected deterministic output
+      expect(output1).toMatchInlineSnapshot(`
+        "@container card (min-width: 31.25rem){.xContainer1{display:flex}}
+        .xPlain1{display:none}
+        @media (min-width: 48rem){.xMedia1{display:none}}
+        var(--x10fi87w){.xVar1.xVar1{grid-template-columns:repeat(2,1fr)}}
+        .xPseudo1::before{inset:0}
+        @media (min-width: 64rem){.xMedia2{inset:0}}
+        @starting-style{.xStarting1{opacity:0}}"
+      `);
+
+      // Process in reversed order — must produce identical output
       const reversed = [...rules].reverse();
-      const output2 = stylexPlugin.processStylexRules(reversed, {
-        useLayers: false,
-        legacyDisableLayers: true,
-      });
+      const output2 = stylexPlugin.processStylexRules(reversed, processOpts);
+      expect(output2).toBe(output1);
 
-      // Process in a shuffled order
+      // Process in a shuffled order — must produce identical output
       const shuffled = [
         rules[4], // xPseudo1
         rules[0], // xMedia1
@@ -797,13 +805,8 @@ describe('@stylexjs/babel-plugin', () => {
         rules[5], // xMedia2
         rules[1], // xContainer1
       ];
-      const output3 = stylexPlugin.processStylexRules(shuffled, {
-        useLayers: false,
-        legacyDisableLayers: true,
-      });
-
-      expect(output1).toBe(output2);
-      expect(output1).toBe(output3);
+      const output3 = stylexPlugin.processStylexRules(shuffled, processOpts);
+      expect(output3).toBe(output1);
     });
 
     test('sort is deterministic with duplicate rules in different input orders', () => {
@@ -821,26 +824,32 @@ describe('@stylexjs/babel-plugin', () => {
         6000,
       ];
 
-      // Order 1: A, B, B, C
+      const processOpts = { useLayers: false, legacyDisableLayers: true };
+
+      // Order 1: A, B, B, C — snapshot the expected output
       const output1 = stylexPlugin.processStylexRules(
         [ruleA, ruleB, ruleB, ruleC],
-        { useLayers: false, legacyDisableLayers: true },
+        processOpts,
       );
+      expect(output1).toMatchInlineSnapshot(`
+        "@media (min-width: 48rem){.xA{display:flex}}
+        .xB::after{inset:0}
+        @starting-style{.xC{opacity:0}}"
+      `);
 
-      // Order 2: C, B, A, B
+      // Order 2: C, B, A, B — must match
       const output2 = stylexPlugin.processStylexRules(
         [ruleC, ruleB, ruleA, ruleB],
-        { useLayers: false, legacyDisableLayers: true },
+        processOpts,
       );
+      expect(output2).toBe(output1);
 
-      // Order 3: B, C, B, A
+      // Order 3: B, C, B, A — must match
       const output3 = stylexPlugin.processStylexRules(
         [ruleB, ruleC, ruleB, ruleA],
-        { useLayers: false, legacyDisableLayers: true },
+        processOpts,
       );
-
-      expect(output1).toBe(output2);
-      expect(output1).toBe(output3);
+      expect(output3).toBe(output1);
     });
   });
 });
