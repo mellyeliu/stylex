@@ -583,27 +583,19 @@ function expandFlexShorthand(
 ): ?$ReadOnlyArray<$ReadOnly<[string, string]>> {
   if (values.length === 1) {
     const val = values[0];
-    const lower = val.toLowerCase();
-    if (lower === 'auto') {
-      return [
-        ['flexGrow', applyImportant('1', importantSuffix)],
-        ['flexShrink', applyImportant('1', importantSuffix)],
-        ['flexBasis', applyImportant('auto', importantSuffix)],
-      ];
-    }
-    if (lower === 'none') {
-      return [
-        ['flexGrow', applyImportant('0', importantSuffix)],
-        ['flexShrink', applyImportant('0', importantSuffix)],
-        ['flexBasis', applyImportant('auto', importantSuffix)],
-      ];
-    }
-    if (lower === 'initial') {
-      return [
-        ['flexGrow', applyImportant('0', importantSuffix)],
-        ['flexShrink', applyImportant('1', importantSuffix)],
-        ['flexBasis', applyImportant('auto', importantSuffix)],
-      ];
+    // Single CSS keywords (auto, none, initial, inherit, unset, revert, etc.)
+    // are valid single-token flex values — pass through without expansion.
+    // A "keyword" here means: not a bare number, not a dimensional/functional
+    // value (e.g. 10px, 50%, calc(...)). Keywords like auto/none/initial are
+    // valid CSS for the flex property itself and don't need to be expanded.
+    const isBareNumber = isFlexNumberValue(val);
+    const isDimensionalOrFunctional =
+      FLEX_BASIS_FUNCTION_REGEX.test(val) ||
+      val.toLowerCase().startsWith('var(') ||
+      /^-?(?:\d+|\d*\.\d+)(?:[a-z%]+)$/i.test(val);
+    if (!isBareNumber && !isDimensionalOrFunctional) {
+      // keyword (auto, none, initial, inherit, unset, revert, content, etc.)
+      return [['flex', applyImportant(val, importantSuffix)]];
     }
     if (isFlexNumberValue(val)) {
       // Single unitless number = flex-grow
