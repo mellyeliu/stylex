@@ -864,6 +864,39 @@ const getPossibleFilePaths = (filePath: string) => {
   return [filePath, ...EXTENSIONS.map((ext) => filePathNoCodeExtension + ext)];
 };
 
+// Turbopack replaces the real project root with the placeholder prefix
+// '/ROOT/' in alias-expanded paths. Since we don't know the actual project
+// root at this point, we walk up from the source file's directory looking
+// for an ancestor where the suffix resolves to a real file.
+const ROOT_PLACEHOLDER = '/ROOT/';
+const MAX_TRAVERSAL_DEPTH = 20;
+
+const resolveRootPlaceholderPath = (
+  filePath: string,
+  sourceFilePath: string,
+): ?string => {
+  const suffix = filePath.slice(ROOT_PLACEHOLDER.length);
+  let currentDir = path.dirname(sourceFilePath);
+
+  for (let depth = 0; depth < MAX_TRAVERSAL_DEPTH; depth++) {
+    const candidate = path.join(currentDir, suffix);
+
+    for (const fileCandidate of getPossibleFilePaths(candidate)) {
+      if (fs.existsSync(fileCandidate)) {
+        return fileCandidate;
+      }
+    }
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
+      break;
+    }
+    currentDir = parentDir;
+  }
+
+  return null;
+};
+
 // a function that resolves the absolute path of a file when given the
 // relative path of the file from the source file
 export const filePathResolver = (
@@ -890,6 +923,17 @@ export const filePathResolver = (
       // rather than going through moduleResolve which expects relative
       // or module-style paths.
       if (path.isAbsolute(possiblePath)) {
+        // Handle Turbopack's /ROOT/ placeholder paths by walking up
+        // from the source file to find the real project root.
+        if (possiblePath.startsWith(ROOT_PLACEHOLDER)) {
+          const resolved = resolveRootPlaceholderPath(
+            possiblePath,
+            sourceFilePath,
+          );
+          if (resolved != null) {
+            return resolved;
+          }
+        }
         for (const candidate of getPossibleFilePaths(possiblePath)) {
           if (fs.existsSync(candidate)) {
             return candidate;

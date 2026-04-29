@@ -63,6 +63,10 @@ function transformWithInlineConsts(source, opts = {}) {
 
 function transformWithAliasedInlineConsts(source, opts = {}) {
   const fixtureDir = path.join(__dirname, '__fixtures__');
+  const repoRoot = path.resolve(__dirname, '../../../../..');
+  const rootFixtureGlob = `/ROOT/${path
+    .relative(repoRoot, fixtureDir)
+    .replace(/\\/g, '/')}/*`;
 
   const { code, metadata } = transformSync(source, {
     filename: path.join(fixtureDir, 'main.stylex.js'),
@@ -75,6 +79,9 @@ function transformWithAliasedInlineConsts(source, opts = {}) {
           ...opts,
           aliases: {
             '~fixture/*': [path.join(fixtureDir, '*')],
+            ...(opts.useRootAlias
+              ? { '~root-fixture/*': [rootFixtureGlob] }
+              : null),
           },
           unstable_moduleResolution: {
             rootDir: fixtureDir,
@@ -454,6 +461,55 @@ describe('@stylexjs/babel-plugin', () => {
           ]),
         ]),
       );
+    });
+
+    test('resolves /ROOT placeholder alias paths for defineConsts imports', () => {
+      const { code, metadata } = transformWithAliasedInlineConsts(
+        `
+        import * as stylex from '@stylexjs/stylex';
+        import { breakpoints } from '~root-fixture/constants.stylex';
+
+        export const styles = stylex.create({
+          root: {
+            color: {
+              default: 'red',
+              [breakpoints.small]: 'blue',
+            },
+          },
+        });
+      `,
+        { useRootAlias: true },
+      );
+
+      expect(code).toContain('xbs0o1n');
+      expect(metadata.stylex).toEqual(
+        expect.arrayContaining([
+          expect.arrayContaining([
+            'xbs0o1n',
+            expect.objectContaining({
+              ltr: expect.stringContaining('color:blue'),
+            }),
+          ]),
+        ]),
+      );
+    });
+
+    test('throws when aliased path does not exist', () => {
+      expect(() => {
+        transformWithAliasedInlineConsts(`
+          import * as stylex from '@stylexjs/stylex';
+          import { breakpoints } from '~fixture/nonexistent.stylex';
+
+          export const styles = stylex.create({
+            root: {
+              color: {
+                default: 'red',
+                [breakpoints.small]: 'blue',
+              },
+            },
+          });
+        `);
+      }).toThrow('Could not resolve the path to the imported file');
     });
 
     test.skip('works with firstThatWorks', () => {
